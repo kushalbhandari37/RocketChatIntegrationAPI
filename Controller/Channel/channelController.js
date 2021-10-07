@@ -46,6 +46,7 @@ module.exports = {
             return responseHelper('success','Data Fetched Successfully',200,result.data,res); 
             
         } catch (error) {
+            console.log(error);
             console.log(error.response.data); 
             const message = (error.response.data.message) ? error.response.data.message : error.response.data.error; 
             return responseHelper('error',message,error.response.status,'',res);   
