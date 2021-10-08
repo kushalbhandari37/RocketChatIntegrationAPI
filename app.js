@@ -14,7 +14,7 @@ app.listen(PORT,()=>{
     console.log('Server has started');
 })
 
-const job = schedule.scheduleJob('*/15 * * * * *', async ()=>{
+const job = schedule.scheduleJob(`*/${process.env.SCHEDULE_INTERVAL} * * * *`, async ()=>{
     await chatService.updateChatDetails();
   });
 

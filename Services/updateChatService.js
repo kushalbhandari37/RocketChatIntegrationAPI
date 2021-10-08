@@ -1,17 +1,55 @@
 const axios = require('axios');
 const fs = require('fs');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const path = './tmp/batch.json';
+const moment = require('moment');
+
 module.exports = {
-    updateChatDetails: async (req,res) => {
-        const visitorsIds = await getVisitors();
-        for(let id of visitorsIds){
-            const visitorDetails = await getVisitorDetails(id);
-            const rooms = await getRooms(visitorDetails.token);              
-            await getAllMessages(visitorDetails,rooms);      
+    //Main function to fetch and update the chats
+    updateChatDetails: async () => {
+        try {
+            const visitorsIds = await getVisitors();
+            for(let id of visitorsIds){
+                const visitorDetails = await getVisitorDetails(id);
+                const rooms = await getRooms(visitorDetails.token);              
+                await getAllMessages(visitorDetails,rooms);      
+            }
+            console.log("All messages updated successfully");
+            await updateBatch();
+            
+            } catch (error) {
+                console.log(error);                 
+            }
         }
+    }
+
+//Update the batch
+const updateBatch = async () => {
+        let latestCount;        
+        if(fs.existsSync(path)){
+        let batch = await JSON.parse(fs.readFileSync('./tmp/batch.json','utf8'));
+        console.log(batch);
+        let count = batch.batch;        
+        latestCount = {
+            batch: ++count
+        };         
+        await fs.writeFileSync('./tmp/batch.json',JSON.stringify(latestCount), (err)=>{
+            if (err) throw err;
+        });
+        console.log("Batch updated successfully.")
+    }
+    else{  
+        latestCount = {
+            batch: 1
+        }      
+        fs.writeFileSync('./tmp/batch.json',JSON.stringify(latestCount), (err)=>{
+            if (err) throw err;            
+        })
+        console.log("Batch updated successfully.")
     }
 }
 
+//Fetch all the rooms related to the visitor
 const getRooms = async (token) => {
     const config = {
         method: 'GET',
@@ -24,14 +62,17 @@ const getRooms = async (token) => {
     }
     const data = await axios(config);
     const rooms = data.data.rooms;
+    console.log("Rooms Fetched Successfully"); 
     return rooms;
 }
 
+//Get the list of visitors from text file
 const getVisitors = async () => {
     await saveVisitors();   
     return JSON.parse(fs.readFileSync('./tmp/users.txt','utf8'));    
 }
 
+//Get the details of visitor
 const getVisitorDetails = async (id) => {
     const config = {
         method: 'GET',
@@ -42,7 +83,8 @@ const getVisitorDetails = async (id) => {
             'Content-Type': 'application/json'
         },
     }
-    const visitors = await axios(config);    
+    const visitors = await axios(config); 
+    console.log("Visitor Details Fetched Successfully");    
     return visitors.data.visitor;
 }
 
@@ -62,18 +104,28 @@ const saveVisitors = async () => {
         
     })    
     fs.writeFileSync('./tmp/users.txt',JSON.stringify(visitorsId), (err)=>{
-        if (err) throw err;
-        console.log('User Updated on file successfully');
-    }) 
+        if (err) throw err;        
+    });
+    console.log('User Updated on file successfully'); 
 
 }
 
 //Get all Messages of the visitor
 const getAllMessages = async (visitorDetails,rooms) => {
+    let previousTime = '';
+    let currentTime = '';
+    if(fs.existsSync(path)){
+        const batch = await JSON.parse(fs.readFileSync('./tmp/batch.json','utf8'));
+        if(batch.batch > 0){
+            currentTime = `&latest=${moment().utc().format()}`;
+            previousTime = `&oldest=${moment().subtract(1,'hours').utc().format()}`;
+        }
+    }
+    console.log({previousTime,currentTime});
     for(let room of rooms){        
         const config = {
             method: 'GET',
-            url: `${process.env.ROCKETCHAT_API_URL}/channels.history?roomId=${room._id}`,
+            url: `${process.env.ROCKETCHAT_API_URL}/channels.history?roomId=${room._id}${currentTime}${previousTime}`,
             headers: {
                 'X-Auth-Token': `${process.env.ROCKETCHAT_ACCESS_TOKEN}`,
                 'X-User-id': `${process.env.ROCKETCHAT_USER_ID}`,
@@ -81,8 +133,10 @@ const getAllMessages = async (visitorDetails,rooms) => {
             },
         }
         const data = await axios(config);  
-        console.log(data.data)  
-        await updateMessage(visitorDetails,data.data);    
+        console.log("Message Fetched Successfully"); 
+        if(data.data.messages.length > 0){
+            await updateMessage(visitorDetails,data.data.messages); 
+        }
     }
 }
 
@@ -92,10 +146,10 @@ const updateMessage = async (visitorDetails,messages) => {
     data.moduleName = "Contacts";
     data.salutationtype = "";
     data.firstname = visitorDetails.name ? visitorDetails.name.split(" ")[0] : "";
-    data.contact_no = (visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
-    data.phone = (visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
+    data.contact_no = (visitorDetails.phone && visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
+    data.phone = (visitorDetails.phone && visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
     data.lastname = visitorDetails.name ? visitorDetails.name.split(" ")[1] : "";
-    data.phone = (visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
+    data.phone = (visitorDetails.phone && visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
     data.account_id = visitorDetails._id;
     data.homephone = "";
     data.leadsource = "";
@@ -104,7 +158,7 @@ const updateMessage = async (visitorDetails,messages) => {
     data.fax = "";
     data.department = (visitorDetails.department) ? visitorDetails.department : "";
     data.birthday = "";
-    data.email = (visitorDetails.visitorEmails.length > 0) ? visitorDetails.visitorEmails[0].address : "";
+    data.email = (visitorDetails.visitorEmails && visitorDetails.visitorEmails.length > 0) ? visitorDetails.visitorEmails[0].address : "";
     data.contact_id = "";
     data.assistant = "";
     data.secondaryemail = "";
@@ -133,13 +187,15 @@ const updateMessage = async (visitorDetails,messages) => {
     data.mailingpobox = "";
     data.otherpobox = "";
     data.imagename = "";
-    data.description = "";
-
+    data.description = (messages) ? JSON.stringify(messages) : '';    
     const config = {
         method: 'POST',
         url: `http://crm.bluealgo.com/api/create-entity.php`,
         headers: {            
             'Content-Type': 'application/json'
         },
-    }
+        data
+    };
+    await axios(config);
+    console.log("Message Updated Successfully");
 }
