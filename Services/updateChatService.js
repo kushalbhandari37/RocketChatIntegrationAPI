@@ -143,7 +143,7 @@ const getAllMessages = async (visitorDetails,rooms) => {
 //Send the details to another API
 const updateMessage = async (visitorDetails,messages) => {
     let data = {};
-    data.moduleName = "Contacts";
+    data.moduleName = "Leads";
     data.salutationtype = "";
     data.firstname = visitorDetails.name ? visitorDetails.name.split(" ")[0] : "";
     data.contact_no = (visitorDetails.phone && visitorDetails.phone.length > 0) ? visitorDetails.phone[0].phoneNumber : "";
