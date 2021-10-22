@@ -142,6 +142,13 @@ const getAllMessages = async (visitorDetails,rooms) => {
 
 //Send the details to another API
 const updateMessage = async (visitorDetails,messages) => {
+    let formattedMessage = [];
+    if(messages){        
+        messages.map(message=>{
+            format = `${message.msg}-${message._updatedAt}-${message.u.username}`
+            formattedMessage.push(format);
+        })
+    }
     let data = {};
     data.moduleName = "Leads";
     data.salutationtype = "";
@@ -165,7 +172,7 @@ const updateMessage = async (visitorDetails,messages) => {
     data.assistantphone = "";
     data.donotcall = "";
     data.emailoptout = "";
-    data.assigned_user_id = "";
+    data.assigned_user_id = "1";
     data.reference = "";
     data.notify_owner = "";
     data.createdtime = "";
@@ -187,7 +194,7 @@ const updateMessage = async (visitorDetails,messages) => {
     data.mailingpobox = "";
     data.otherpobox = "";
     data.imagename = "";
-    data.description = (messages) ? JSON.stringify(messages) : '';    
+    data.description = (messages) ? JSON.stringify(formattedMessage[0]) : '';   
     const config = {
         method: 'POST',
         url: `http://crm.bluealgo.com/api/create-entity.php`,
@@ -196,6 +203,7 @@ const updateMessage = async (visitorDetails,messages) => {
         },
         data
     };
-    await axios(config);
+    const response = await axios(config);
+    console.log(response);
     console.log("Message Updated Successfully");
 }
